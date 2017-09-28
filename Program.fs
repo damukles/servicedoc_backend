@@ -11,7 +11,7 @@ open Db.Models
 
 let exitCode = 0
 
-// store a mutable DbConfig option instead of using DI
+// store a mutable DbConfig instead of using DI
 let mutable DbConfig : DbConfig = { connectionString = null; database = null }
 
 let configureConfiguration (ctx : WebHostBuilderContext) (configBuilder : IConfigurationBuilder) =
