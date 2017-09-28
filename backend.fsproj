@@ -4,11 +4,13 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Db/Models.fs" />
+    <Compile Include="Db/Service.fs" />
     <Compile Include="WebApp.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Giraffe" Version="0.1.0-beta-100" />
     <PackageReference Include="Microsoft.AspNetCore.All" Version="2.0.0" />
+    <PackageReference Include="MongoDb.Driver" Version="2.4.4" />
   </ItemGroup>
 </Project>
