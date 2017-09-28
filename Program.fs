@@ -1,32 +1,27 @@
 module Program
 
 open System
-open System.Collections.Generic
-open System.IO
-open System.Linq
-open System.Threading.Tasks
 open Microsoft.AspNetCore
+open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Configuration
-open Microsoft.Extensions.Logging
-open Microsoft.AspNetCore.Builder
 open Microsoft.Extensions.DependencyInjection
 open Giraffe.Middleware
 open Db.Models
 
-// module Program =
 let exitCode = 0
 
-let mutable DbConfig : DbConfig option = None
+// store a mutable DbConfig option instead of using DI
+let mutable DbConfig : DbConfig = { connectionString = null; database = null }
 
 let configureConfiguration (ctx : WebHostBuilderContext) (configBuilder : IConfigurationBuilder) =
     let config = configBuilder
                     .SetBasePath(ctx.HostingEnvironment.ContentRootPath)
                     .AddJsonFile("appsettings.json")
                     .Build()
-    DbConfig <- Some { connectionString =  config.GetSection("DbConfig:ConnectionString").Value
-                     ; database = config.GetSection("DbConfig:Database").Value
-                     }
+    DbConfig <- { connectionString =  config.GetSection("DbConfig:ConnectionString").Value
+                ; database = config.GetSection("DbConfig:Database").Value
+                }
     ()
 
 let configureServices(services : IServiceCollection) =
