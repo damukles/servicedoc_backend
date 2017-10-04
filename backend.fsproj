@@ -5,7 +5,7 @@
   <ItemGroup>
     <Compile Include="Db/Models.fs" />
     <Compile Include="Db/Service.fs" />
-    <Compile Include="WebApp.fs" />
+    <Compile Include="Api.fs" />
     <Compile Include="Program.fs" />
   </ItemGroup>
   <ItemGroup>

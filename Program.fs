@@ -38,8 +38,8 @@ let configureServices(services : IServiceCollection) =
 
 let configureApp(app: IApplicationBuilder) =
     app.UseCors("CorsPolicy") |> ignore
-    app.UseGiraffeErrorHandler WebApp.errorHandler
-    app.UseGiraffe (WebApp.webApp DbConfig)
+    app.UseGiraffeErrorHandler Api.errorHandler
+    app.UseGiraffe (Api.router DbConfig)
     ()
 
 let BuildWebHost args =
