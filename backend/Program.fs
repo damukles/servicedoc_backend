@@ -8,11 +8,19 @@ open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
 open Giraffe.Middleware
 open Db.Models
+open Microsoft.Extensions.Logging
 
 let exitCode = 0
 
 // store a mutable DbConfig instead of using DI
 let mutable DbConfig : DbConfig = { connectionString = null; database = null }
+
+let configureLogging (builder : ILoggingBuilder) =
+    let filter (l : LogLevel) = l.Equals LogLevel.Warning
+    builder.AddFilter(filter)
+           .AddConsole()
+           .AddDebug()
+        |> ignore
 
 let configureConfiguration (ctx : WebHostBuilderContext) (configBuilder : IConfigurationBuilder) =
     let config = configBuilder
@@ -43,16 +51,20 @@ let configureApp(app: IApplicationBuilder) =
     ()
 
 let BuildWebHost args =
-    WebHost
-        .CreateDefaultBuilder(args)
+    WebHostBuilder()
+        // .CreateDefaultBuilder(args)
+        .UseKestrel()
+        .UseIISIntegration()
         .ConfigureAppConfiguration(configureConfiguration)
+        .ConfigureLogging(configureLogging)
         .Configure(Action<IApplicationBuilder> configureApp)
         .ConfigureServices(configureServices)
-        .Build()
 
 
 [<EntryPoint>]
 let main args =
-    BuildWebHost(args).Run()
+    BuildWebHost(args)
+        .Build()
+        .Run()
 
     exitCode

@@ -8,6 +8,7 @@ type DbConfig =
     { connectionString : string
       database : string }
 
+[<CLIMutable>]
 type Service =
     { [<BsonId>]
       [<BsonRepresentation(BsonType.ObjectId)>]
@@ -19,6 +20,7 @@ type Service =
       Description : string
     }
 
+[<CLIMutable>]
 type Connection =
     { [<BsonId>]
       [<BsonRepresentation(BsonType.ObjectId)>]

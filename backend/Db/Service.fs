@@ -5,6 +5,8 @@ open MongoDB.Bson
 open Models
 open Giraffe.Tasks
 
+// --- TRY TO UNIFY REPOSITORIES WITH DU TYPES --- //
+
 let connect (dbConfig : DbConfig) =
     MongoClient(dbConfig.connectionString).GetDatabase(dbConfig.database)
 
@@ -26,7 +28,7 @@ let getServices (dbConfig : DbConfig) =
 let getService (dbConfig : DbConfig) (id : string) =
     task {
         let! service = (servicesCollection dbConfig)
-                            .Find(fun x -> id.Equals(x.Id)).ToListAsync()
+                            .Find(fun x -> id.Equals(x.Id)).SingleOrDefaultAsync()
         return service
     }
 
@@ -48,40 +50,40 @@ let addService (dbConfig : DbConfig) (service : Service) =
     task {
         let! _ = (servicesCollection dbConfig)
                             .InsertOneAsync(service)
-        // not mutable, should not update Id!
         return service
     }
 
 let addConnection (dbConfig : DbConfig) (connection : Connection) =
     task {
         let! _ = (connectionsCollection dbConfig)
-                                .InsertOneAsync(connection)
-        // not mutable, should not update Id!
+                            .InsertOneAsync(connection)
         return connection
     }
 
+let filterById id =
+    // WTF, that needs to be better!
+    FilterDefinition.op_Implicit(sprintf """{ "_id": ObjectId("%s") }""" id)
+
 let updateService (dbConfig : DbConfig) (id : string) (service : Service) =
     task {
-        let filter = fun (s : Service) -> s.Id.Equals(id)
         let options =
             let o = new FindOneAndReplaceOptions<Service, Service>()
             o.ReturnDocument <- ReturnDocument.After
             o
         let dbService = (servicesCollection dbConfig)
-                            .FindOneAndReplaceAsync(filter, service, options)
-        return dbService
+                            .FindOneAndReplaceAsync(filterById id, service, options)
+        return! dbService
     }
 
 let updateConnection (dbConfig : DbConfig) (id : string) (connection : Connection) =
     task {
-        let filter = fun (s : Connection) -> s.Id.Equals(id)
         let options =
             let o = new FindOneAndReplaceOptions<Connection, Connection>()
             o.ReturnDocument <- ReturnDocument.After
             o
         let dbConnection = (connectionsCollection dbConfig)
-                            .FindOneAndReplaceAsync(filter, connection, options)
-        return dbConnection
+                                .FindOneAndReplaceAsync(filterById id, connection, options)
+        return! dbConnection
     }
 
 let deleteService (dbConfig : DbConfig) (id : string) =

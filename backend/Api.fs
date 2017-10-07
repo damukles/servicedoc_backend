@@ -32,6 +32,7 @@ let validateModel model =
             |> String.concat ", "
             |> Invalid
 
+// NO NEED TO MAP A FULL PIPELINE FUNCTION
 let mapValid (func : 'a -> HttpFunc -> HttpContext -> HttpFuncResult) validState : (HttpFunc -> HttpContext -> HttpFuncResult) =
         match validState with
         | Valid model ->
