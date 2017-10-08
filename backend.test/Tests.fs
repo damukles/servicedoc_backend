@@ -53,7 +53,6 @@ let deleteService (service : Service) =
 let ``Full CRUD Test`` () =
     task {
         let! allServices = getAllServices ()
-        let firstService = Seq.head allServices
         let! addedService = addService { Id = null; Name = "Test"; HostedOn = "Test"; Description = null }
         let! gotService = getService addedService.Id
         let! updatedService = updateService { gotService with Description = "TestUpdate" }
