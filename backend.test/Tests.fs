@@ -7,53 +7,56 @@ open Db.Models
 open Giraffe.Tasks
 open MongoDB.Driver
 
-// --- BUILD A NICE CHAIN OF TESTS STARTING WITH ADD AND ENDING WITH DELETE --- //
-
 let dbConfig =
     { connectionString = "mongodb://localhost"
     ; database = "servicedoc"
     }
 
-let mutable services : Service List = []
-
-[<Fact>]
-let ``Get all services`` () =
+let getAllServices () =
     task {
         let! data = Db.Service.getServices dbConfig
-        services <- List.ofSeq data
         Assert.NotNull(data)
         Assert.True(data.Count > 1)
+        return data
     }
 
-[<Fact>]
-let ``Get service`` () =
+let getService (id : string) =
     task {
-        let id = "59d91aa2b5553255080b41cf"
         let! data = Db.Service.getService dbConfig id
         Assert.NotNull(data)
         Assert.True(id.Equals(data.Id))
+        return data
     }
 
-[<Fact>]
-let ``Add service`` () =
+let addService (service : Service)=
     task {
-        let service = { Id = null; Name = "Test"; HostedOn = "Test"; Description = null }
         let! data = Db.Service.addService dbConfig service
         Assert.NotNull(data.Id)
+        return data
     }
 
-[<Fact>]
-let ``Update service`` () =
+let updateService (service : Service) =
     task {
-        let myService = { Id = "59d91aa2b5553255080b41cf"; Name = "Test"; HostedOn = "Test"; Description = null }
-        let service = { myService with Description = "Updated" }
-        let! data = Db.Service.updateService dbConfig myService.Id service
+        let! data = Db.Service.updateService dbConfig service.Id service
         Assert.NotNull(data.Description)
+        return data
+    }
+
+let deleteService (service : Service) =
+    task {
+        let! result = Db.Service.deleteService dbConfig service.Id
+        Assert.True(result.IsAcknowledged && result.DeletedCount > int64(0))
+        return result
     }
 
 [<Fact>]
-let ``Delete service`` () =
+let ``Full CRUD Test`` () =
     task {
-        let! result = Db.Service.deleteService dbConfig "59d91aa2b5553255080b41cf"
-        Assert.True(result.IsAcknowledged && result.DeletedCount > int64(0))
+        let! allServices = getAllServices ()
+        let firstService = Seq.head allServices
+        let! addedService = addService { Id = null; Name = "Test"; HostedOn = "Test"; Description = null }
+        let! gotService = getService addedService.Id
+        let! updatedService = updateService { gotService with Description = "TestUpdate" }
+        let! deleteResult = deleteService updatedService
+        ()
     }
