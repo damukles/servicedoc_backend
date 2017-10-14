@@ -11,9 +11,14 @@ open Microsoft.AspNetCore.Http
 open Db.Models
 open FSharp.Collections
 
+// The default error handler
 let errorHandler (ex : Exception) (logger : ILogger) =
     logger.LogError(EventId(), ex, "An unhandled exception has occurred while executing the request.")
     clearResponse >=> setStatusCode 500 >=> text ex.Message
+
+// End the Http Pipeline calling this instead of next
+let finish =
+    Some >> System.Threading.Tasks.Task.FromResult
 
 let badRequest responseMessage =
     clearResponse >=> setStatusCode 400 >=> text responseMessage
@@ -32,13 +37,17 @@ let validateModel model =
             |> String.concat ", "
             |> Invalid
 
-// NO NEED TO MAP A FULL PIPELINE FUNCTION
-let mapValid (func : 'a -> HttpFunc -> HttpContext -> HttpFuncResult) validState : (HttpFunc -> HttpContext -> HttpFuncResult) =
-        match validState with
-        | Valid model ->
-            func model
-        | Invalid results ->
-            badRequest results
+// HttpHandler that requires a valid model and passes it to the next function
+let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
+    fun (next : HttpFunc) (ctx : HttpContext) ->
+        task {
+            let! model = ctx.BindJson<'T>()
+            match validateModel model with
+                    | Valid model ->
+                        return! modelHandler model next ctx
+                    | Invalid results ->
+                        return! badRequest results finish ctx
+        }
 
 let getServices (dbConfig : DbConfig) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
@@ -68,64 +77,34 @@ let getConnection (dbConfig : DbConfig) (id : string)  =
             return! json services next ctx
         }
 
-let addService (dbConfig : DbConfig) =
+let addService (dbConfig : DbConfig) (service : Service) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! service = ctx.BindJson<Service>()
-            let result = validateModel service
-                            |> mapValid
-                                (fun (service : Service) (next : HttpFunc) (ctx : HttpContext)  ->
-                                    task {
-                                        let! dbService = Db.Service.addService dbConfig service
-                                        return! json dbService next ctx
-                                    }
-                                )
-            return! result next ctx
+            let! dbService = Db.Service.addService dbConfig service
+            return! json dbService next ctx
         }
 
-let addConnection (dbConfig : DbConfig) =
+let addConnection (dbConfig : DbConfig) (connection : Connection) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! connection = ctx.BindJson<Connection>()
-            let result = validateModel connection
-                            |> mapValid
-                                (fun (connection : Connection) (next : HttpFunc) (ctx : HttpContext)  ->
-                                    task {
-                                        let! dbConnection = Db.Service.addConnection dbConfig connection
-                                        return! json dbConnection next ctx
-                                    }
-                                )
-            return! result next ctx
+            let! dbConnection = Db.Service.addConnection dbConfig connection
+            return! json dbConnection next ctx
         }
 
-let updateService (dbConfig : DbConfig) (id : string) =
+
+let updateService (dbConfig : DbConfig) (id : string) (service : Service) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! service = ctx.BindJson<Service>()
-            let result = validateModel service
-                            |> mapValid
-                                (fun (service : Service) (next : HttpFunc) (ctx : HttpContext)  ->
-                                    task {
-                                        let! dbService = Db.Service.updateService dbConfig id service
-                                        return! json dbService next ctx
-                                    }
-                                )
-            return! result next ctx                                  
+            let! dbService = Db.Service.updateService dbConfig id service
+            return! json dbService next ctx
         }
 
-let updateConnection (dbConfig : DbConfig) (id : string) =
-        fun (next : HttpFunc) (ctx : HttpContext) ->
+
+let updateConnection (dbConfig : DbConfig) (id : string) (connection : Connection) =
+    fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! connection = ctx.BindJson<Connection>()
-            let result = validateModel connection                            
-                            |> mapValid
-                                (fun (connection : Connection) (next : HttpFunc) (ctx : HttpContext)  ->
-                                    task {
-                                        let! dbConnection = Db.Service.updateConnection dbConfig id connection
-                                        return! json dbConnection next ctx
-                                    }
-                                )
-            return! result next ctx
+            let! dbConnection = Db.Service.updateConnection dbConfig id connection
+            return! json dbConnection next ctx
         }
 
 let deleteService (dbConfig : DbConfig) (id : string) =
@@ -158,13 +137,13 @@ let router (dbConfig : DbConfig) : (HttpFunc -> HttpContext -> HttpFuncResult) =
             ]
         POST >=>
             choose [
-                route "/api/services"           >=> addService dbConfig
-                route "/api/connections"        >=> addConnection dbConfig
+                route "/api/services"           >=> (requireValid<Service>      <| addService dbConfig)
+                route "/api/connections"        >=> (requireValid<Connection>   <| addConnection dbConfig)
             ]
         PUT >=>
             choose [
-                routef "/api/services/%s"       <| fun (id : string) -> updateService dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> updateConnection dbConfig id
+                routef "/api/services/%s"       <| fun (id : string) -> requireValid<Service>    <| updateService dbConfig id
+                routef "/api/connections/%s"    <| fun (id : string) -> requireValid<Connection> <| updateConnection dbConfig id
             ]
         DELETE >=>
             choose [

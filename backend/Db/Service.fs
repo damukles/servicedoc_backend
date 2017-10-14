@@ -5,7 +5,7 @@ open MongoDB.Bson
 open Models
 open Giraffe.Tasks
 
-// --- TRY TO UNIFY REPOSITORIES WITH DU TYPES --- //
+// --- TRY TO UNIFY WITH GENERICS --- //
 
 let connect (dbConfig : DbConfig) =
     MongoClient(dbConfig.connectionString).GetDatabase(dbConfig.database)
