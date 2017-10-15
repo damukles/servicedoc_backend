@@ -49,70 +49,40 @@ let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
                         return! badRequest results finish ctx
         }
 
-let getServices (dbConfig : DbConfig) =
+let getAll<'T> (dbConfig : DbConfig) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! services = Db.Service.getServices dbConfig
-            return! json services next ctx
+            let! result = Db.Service.getAll<'T> dbConfig
+            return! json result next ctx
         }
 
-let getService (dbConfig : DbConfig) (id : string)  =
+let getById<'T> (dbConfig : DbConfig) (id : string)  =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! services = Db.Service.getService dbConfig id
-            return! json services next ctx
+            let! result = Db.Service.getById<'T> dbConfig id
+            return! json result next ctx
         }
 
-let getConnections (dbConfig : DbConfig) =
+let add<'T> (dbConfig : DbConfig) (model : 'T) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! services = Db.Service.getConnections dbConfig
-            return! json services next ctx
+            let! dbModel = Db.Service.add<'T> dbConfig model
+            return! json dbModel next ctx
         }
 
-let getConnection (dbConfig : DbConfig) (id : string)  =
+let update<'T> (dbConfig : DbConfig) (id : string) (model : 'T) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! services = Db.Service.getConnection dbConfig id
-            return! json services next ctx
-        }
-
-let addService (dbConfig : DbConfig) (service : Service) =
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-            let! dbService = Db.Service.addService dbConfig service
-            return! json dbService next ctx
-        }
-
-let addConnection (dbConfig : DbConfig) (connection : Connection) =
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-            let! dbConnection = Db.Service.addConnection dbConfig connection
-            return! json dbConnection next ctx
-        }
-
-
-let updateService (dbConfig : DbConfig) (id : string) (service : Service) =
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-            let! dbService = Db.Service.updateService dbConfig id service
-            return! json dbService next ctx
-        }
-
-
-let updateConnection (dbConfig : DbConfig) (id : string) (connection : Connection) =
-    fun (next : HttpFunc) (ctx : HttpContext) ->
-        task {
-            let! dbConnection = Db.Service.updateConnection dbConfig id connection
-            return! json dbConnection next ctx
+            let! dbModel = Db.Service.update<'T> dbConfig id model
+            return! json dbModel next ctx
         }
 
 let deleteService (dbConfig : DbConfig) (id : string) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! cons = Db.Service.getConnections dbConfig
+            let! cons = Db.Service.getAll<Connection> dbConfig
             if (cons |> Seq.exists (fun x -> x.From.Equals(id) || x.To.Equals(id))) then
-                let! _ = Db.Service.deleteService dbConfig id
+                let! _ = Db.Service.delete<Service> dbConfig id
                 return! next ctx
             else
                 return! badRequest "This service has connections. Delete those first." next ctx
@@ -121,7 +91,7 @@ let deleteService (dbConfig : DbConfig) (id : string) =
 let deleteConnection (dbConfig : DbConfig) (id : string) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! _ = Db.Service.deleteConnection dbConfig id
+            let! _ = Db.Service.delete<Connection> dbConfig id
             return! next ctx
         }
 
@@ -130,20 +100,20 @@ let router (dbConfig : DbConfig) : (HttpFunc -> HttpContext -> HttpFuncResult) =
         GET >=>
             choose [
                 route "/"                       >=> text "Hi, I am an Api.."
-                route "/api/services"           >=> getServices dbConfig
-                route "/api/connections"        >=> getConnections dbConfig
-                routef "/api/services/%s"       <| fun (id : string) -> getService dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> getConnection dbConfig id
+                route "/api/services"           >=> getAll<Service> dbConfig
+                route "/api/connections"        >=> getAll<Connection> dbConfig
+                routef "/api/services/%s"       <| fun (id : string) -> getById<Service> dbConfig id
+                routef "/api/connections/%s"    <| fun (id : string) -> getById<Connection> dbConfig id
             ]
         POST >=>
             choose [
-                route "/api/services"           >=> (requireValid<Service>      <| addService dbConfig)
-                route "/api/connections"        >=> (requireValid<Connection>   <| addConnection dbConfig)
+                route "/api/services"           >=> (requireValid<Service>      <| add<Service> dbConfig)
+                route "/api/connections"        >=> (requireValid<Connection>   <| add<Connection> dbConfig)
             ]
         PUT >=>
             choose [
-                routef "/api/services/%s"       <| fun (id : string) -> requireValid<Service>    <| updateService dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> requireValid<Connection> <| updateConnection dbConfig id
+                routef "/api/services/%s"       <| fun (id : string) -> requireValid<Service>    <| update<Service> dbConfig id
+                routef "/api/connections/%s"    <| fun (id : string) -> requireValid<Connection> <| update<Connection> dbConfig id
             ]
         DELETE >=>
             choose [
