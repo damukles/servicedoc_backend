@@ -9,7 +9,6 @@ open Giraffe.HttpHandlers
 open Microsoft.Extensions.Logging
 open Microsoft.AspNetCore.Http
 open Db.Models
-open FSharp.Collections
 
 // The default error handler
 let errorHandler (ex : Exception) (logger : ILogger) =
@@ -18,7 +17,7 @@ let errorHandler (ex : Exception) (logger : ILogger) =
 
 // End the Http Pipeline calling this instead of next
 let finish =
-    Some >> System.Threading.Tasks.Task.FromResult
+    Some >> Threading.Tasks.Task.FromResult
 
 let badRequest responseMessage =
     clearResponse >=> setStatusCode 400 >=> text responseMessage
@@ -112,13 +111,13 @@ let router (dbConfig : DbConfig) : (HttpFunc -> HttpContext -> HttpFuncResult) =
             ]
         PUT >=>
             choose [
-                routef "/api/services/%s"       <| fun (id : string) -> requireValid<Service>    <| update<Service> dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> requireValid<Connection> <| update<Connection> dbConfig id
+                routef "/api/services/%s"       (requireValid<Service> << update<Service> dbConfig)
+                routef "/api/connections/%s"    (requireValid<Connection> << update<Connection> dbConfig)
             ]
         DELETE >=>
             choose [
-                routef "/api/services/%s"       <| fun (id : string) -> deleteService dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> deleteConnection dbConfig id
+                routef "/api/services/%s"       <| deleteService dbConfig
+                routef "/api/connections/%s"    <| deleteConnection dbConfig
             ]
         setStatusCode 404 >=> text "Not Found"
     ]    

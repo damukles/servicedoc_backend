@@ -1,7 +1,6 @@
 module Db.Service
 
 open MongoDB.Driver
-open MongoDB.Bson
 open Models
 open Giraffe.Tasks
 
