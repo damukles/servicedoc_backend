@@ -101,8 +101,8 @@ let router (dbConfig : DbConfig) : (HttpFunc -> HttpContext -> HttpFuncResult) =
                 route "/"                       >=> text "Hi, I am an Api.."
                 route "/api/services"           >=> getAll<Service> dbConfig
                 route "/api/connections"        >=> getAll<Connection> dbConfig
-                routef "/api/services/%s"       <| fun (id : string) -> getById<Service> dbConfig id
-                routef "/api/connections/%s"    <| fun (id : string) -> getById<Connection> dbConfig id
+                routef "/api/services/%s"       <| getById<Service> dbConfig
+                routef "/api/connections/%s"    <| getById<Connection> dbConfig
             ]
         POST >=>
             choose [
