@@ -1,3 +1,3 @@
 # ServiceDoc backend
 
-This is an experimental project, that tries to use F# as purely functional as possible - no OO wherever possible.
+This is an experimental project to explore F# and Giraffe with AspNetCore.
