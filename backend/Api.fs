@@ -1,5 +1,6 @@
 module Api
 
+open Db.Models
 open System
 open System.Collections.Generic
 open System.ComponentModel.DataAnnotations
@@ -8,7 +9,7 @@ open Giraffe.HttpContextExtensions
 open Giraffe.HttpHandlers
 open Microsoft.Extensions.Logging
 open Microsoft.AspNetCore.Http
-open Db.Models
+open MongoDB.Driver
 
 // The default error handler
 let errorHandler (ex : Exception) (logger : ILogger) =
@@ -24,17 +25,14 @@ let badRequest responseMessage =
 
 type ModelState<'e,'a> =
     | Valid of 'a
-    | Invalid of string
+    | Invalid of ValidationResult seq
 
 let validateModel model = 
     let mutable results = List<ValidationResult>()
     if Validator.TryValidateObject(model, (ValidationContext(model, null, null)), results) then
         Valid model
     else
-        results
-            |> Seq.map (fun (x : ValidationResult) -> x.ErrorMessage)
-            |> String.concat ", "
-            |> Invalid
+        Invalid results
 
 // HttpHandler that requires a valid model and passes it to the next function
 let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
@@ -45,79 +43,83 @@ let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
                 | Valid model ->
                     return! modelHandler model next ctx
                 | Invalid results ->
-                    return! badRequest results finish ctx
+                    let strResult =
+                        results
+                            |> Seq.map (fun (x : ValidationResult) -> x.ErrorMessage)
+                            |> String.concat ", "
+                    return! badRequest strResult finish ctx
         }
 
-let getAll<'T> (dbConfig : DbConfig) =
+let getAll<'T> (dbClient : IMongoDatabase) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! result = Db.Service.getAll<'T> dbConfig
+            let! result = Db.Service.getAll<'T> dbClient
             return! json result next ctx
         }
 
-let getById<'T> (dbConfig : DbConfig) (id : string)  =
+let getById<'T> (dbClient : IMongoDatabase) (id : string)  =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! result = Db.Service.getById<'T> dbConfig id
+            let! result = Db.Service.getById<'T> dbClient id
             return! json result next ctx
         }
 
-let add<'T> (dbConfig : DbConfig) (model : 'T) =
+let add<'T> (dbClient : IMongoDatabase) (model : 'T) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! dbModel = Db.Service.add<'T> dbConfig model
+            let! dbModel = Db.Service.add<'T> dbClient model
             return! json dbModel next ctx
         }
 
-let update<'T> (dbConfig : DbConfig) (id : string) (model : 'T) =
+let update<'T> (dbClient : IMongoDatabase) (id : string) (model : 'T) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! dbModel = Db.Service.update<'T> dbConfig id model
+            let! dbModel = Db.Service.update<'T> dbClient id model
             return! json dbModel next ctx
         }
 
-let deleteService (dbConfig : DbConfig) (id : string) =
+let deleteService (dbClient : IMongoDatabase) (id : string) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! cons = Db.Service.getAll<Connection> dbConfig
+            let! cons = Db.Service.getAll<Connection> dbClient
             if (cons |> Seq.exists (fun x -> x.From.Equals(id) || x.To.Equals(id))) then
-                let! _ = Db.Service.delete<Service> dbConfig id
+                let! _ = Db.Service.delete<Service> dbClient id
                 return! next ctx
             else
                 return! badRequest "This service has connections. Delete those first." next ctx
         }
 
-let deleteConnection (dbConfig : DbConfig) (id : string) =
+let deleteConnection (dbClient : IMongoDatabase) (id : string) =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! _ = Db.Service.delete<Connection> dbConfig id
+            let! _ = Db.Service.delete<Connection> dbClient id
             return! next ctx
         }
 
-let router (dbConfig : DbConfig) : (HttpFunc -> HttpContext -> HttpFuncResult) =
+let router (dbClient : IMongoDatabase) : (HttpFunc -> HttpContext -> HttpFuncResult) =
     choose [
         GET >=>
             choose [
                 route "/"                       >=> text "Hi, I am an Api.."
-                route "/api/services"           >=> getAll<Service> dbConfig
-                route "/api/connections"        >=> getAll<Connection> dbConfig
-                routef "/api/services/%s"       <| getById<Service> dbConfig
-                routef "/api/connections/%s"    <| getById<Connection> dbConfig
+                route "/api/services"           >=> getAll<Service> dbClient
+                route "/api/connections"        >=> getAll<Connection> dbClient
+                routef "/api/services/%s"       <| getById<Service> dbClient
+                routef "/api/connections/%s"    <| getById<Connection> dbClient
             ]
         POST >=>
             choose [
-                route "/api/services"           >=> (requireValid<Service>      <| add<Service> dbConfig)
-                route "/api/connections"        >=> (requireValid<Connection>   <| add<Connection> dbConfig)
+                route "/api/services"           >=> (requireValid<Service>      <| add<Service> dbClient)
+                route "/api/connections"        >=> (requireValid<Connection>   <| add<Connection> dbClient)
             ]
         PUT >=>
             choose [
-                routef "/api/services/%s"       (requireValid<Service> << update<Service> dbConfig)
-                routef "/api/connections/%s"    (requireValid<Connection> << update<Connection> dbConfig)
+                routef "/api/services/%s"       (requireValid<Service> << update<Service> dbClient)
+                routef "/api/connections/%s"    (requireValid<Connection> << update<Connection> dbClient)
             ]
         DELETE >=>
             choose [
-                routef "/api/services/%s"       <| deleteService dbConfig
-                routef "/api/connections/%s"    <| deleteConnection dbConfig
+                routef "/api/services/%s"       <| deleteService dbClient
+                routef "/api/connections/%s"    <| deleteConnection dbClient
             ]
         setStatusCode 404 >=> text "Not Found"
     ]    

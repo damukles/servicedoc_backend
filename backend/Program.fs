@@ -40,8 +40,10 @@ let configureApp(app: IApplicationBuilder) =
     let env = app.ApplicationServices.GetService<IHostingEnvironment>()
     if (env.IsDevelopment()) then app.UseCors("CorsPolicy") |> ignore
     app.UseGiraffeErrorHandler Api.errorHandler
-    let dbConfig = app.ApplicationServices.GetRequiredService<IOptions<DbConfig>>().Value
-    app.UseGiraffe (Api.router dbConfig)
+    let dbClient =
+        app.ApplicationServices.GetRequiredService<IOptions<DbConfig>>().Value
+            |> Db.Service.getClient
+    app.UseGiraffe (Api.router dbClient)
     ()
 
 [<EntryPoint>]

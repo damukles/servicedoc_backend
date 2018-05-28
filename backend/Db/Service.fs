@@ -5,11 +5,11 @@ open Models
 open Giraffe.Tasks
 
 
-let connect (dbConfig : DbConfig) =
+let getClient (dbConfig : DbConfig) =
     MongoClient(dbConfig.connectionString).GetDatabase(dbConfig.database)
 
-let collection<'T> (dbConfig : DbConfig) : IMongoCollection<'T> =
-    (connect dbConfig)
+let collection<'T> (client : IMongoDatabase) : IMongoCollection<'T> =
+    client
         .GetCollection<'T> (typeof<'T>.Name + "s")
 
 let filterById id =
@@ -19,41 +19,41 @@ let filterById id =
 // let inline filterById<'a when 'a : ( member Id : string)> id =
 //     fun x -> id = (^a : (member Id : string) x)
 
-let getAll<'T> (dbConfig :  DbConfig) =
+let getAll<'T> (client : IMongoDatabase) =
     task {
-        return! (collection<'T> dbConfig)
+        return! (client |> collection<'T>)
                     .Find(fun _ -> true)
                     .ToListAsync();
     }
 
-let getById<'T> (dbConfig : DbConfig) (id : string) =
+let getById<'T> (client : IMongoDatabase) (id : string) =
     task {
-        return! (collection<'T> dbConfig)
+        return! (client |> collection<'T>)
                     .Find(filterById id)
                     .SingleOrDefaultAsync()
     }
 
-let add<'T> (dbConfig : DbConfig) (model : 'T) =
+let add<'T> (client : IMongoDatabase) (model : 'T) =
     task {
-        (collection<'T> dbConfig)
+        (client |> collection<'T>)
             .InsertOneAsync(model)
             |> ignore
         return model
     }
 
-let update<'T> (dbConfig : DbConfig) (id : string) (model : 'T) =
+let update<'T> (client : IMongoDatabase) (id : string) (model : 'T) =
     task {
         let options =
             let o = new FindOneAndReplaceOptions<'T, 'T>()
             o.ReturnDocument <- ReturnDocument.After
             o
-        let dbService = (collection<'T> dbConfig)
+        let dbService = (client |> collection<'T>)
                             .FindOneAndReplaceAsync(filterById id, model, options)
         return! dbService
     }
 
-let delete<'T> (dbConfig : DbConfig) (id : string) =
+let delete<'T> (client : IMongoDatabase) (id : string) =
     task {
-        return! (collection<'T> dbConfig)
+        return! (client |> collection<'T>)
                     .DeleteOneAsync(filterById id)
     }
