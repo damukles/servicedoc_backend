@@ -1,69 +1,61 @@
 module Program
 
 open System
+open System.IO
 open Microsoft.AspNetCore.Builder
 open Microsoft.AspNetCore.Hosting
 open Microsoft.Extensions.Configuration
 open Microsoft.Extensions.DependencyInjection
+open Microsoft.Extensions.Logging
+open Microsoft.Extensions.Options
 open Giraffe.Middleware
 open Db.Models
-open Microsoft.Extensions.Logging
-
-let exitCode = 0
-
-// store a mutable DbConfig instead of using DI
-let mutable DbConfig : DbConfig = { connectionString = null; database = null }
 
 let configureLogging (builder : ILoggingBuilder) =
     let filter (l : LogLevel) = l.Equals LogLevel.Warning
     builder.AddFilter(filter)
-           .AddConsole()
-           .AddDebug()
+        .AddConsole()
+        .AddDebug()
         |> ignore
 
-let configureConfiguration (ctx : WebHostBuilderContext) (configBuilder : IConfigurationBuilder) =
-    let config = configBuilder
-                    .SetBasePath(ctx.HostingEnvironment.ContentRootPath)
-                    .AddJsonFile("appsettings.json")
-                    .Build()
-    DbConfig <- { connectionString =  config.GetSection("DbConfig:ConnectionString").Value
-                ; database = config.GetSection("DbConfig:Database").Value
-                }
-    ()
-
-let configureServices(services : IServiceCollection) =
-    services.AddCors(
-        fun options -> options.AddPolicy("CorsPolicy",
-                              fun builder -> builder.AllowAnyOrigin()
-                                                    .AllowAnyMethod()
-                                                    .AllowAnyHeader()
-                                                    .AllowCredentials()
-                                                    |> ignore
+let configureServices (config : IConfiguration) (services : IServiceCollection)  =
+    services
+        .AddCors(
+            fun options ->
+            options.AddPolicy("CorsPolicy",
+                fun builder ->
+                    builder
+                        .AllowAnyOrigin()
+                        .AllowAnyMethod()
+                        .AllowAnyHeader()
+                        .AllowCredentials()
+                        |> ignore
+            )
         )
-    ) |> ignore
+        .Configure<DbConfig>(fun options -> config.Bind("DbConfig", options))
+        |> ignore
     ()
 
 let configureApp(app: IApplicationBuilder) =
-    app.UseCors("CorsPolicy") |> ignore
+    let env = app.ApplicationServices.GetService<IHostingEnvironment>()
+    if (env.IsDevelopment()) then app.UseCors("CorsPolicy") |> ignore
     app.UseGiraffeErrorHandler Api.errorHandler
-    app.UseGiraffe (Api.router DbConfig)
+    let dbConfig = app.ApplicationServices.GetRequiredService<IOptions<DbConfig>>().Value
+    app.UseGiraffe (Api.router dbConfig)
     ()
 
-let BuildWebHost args =
+[<EntryPoint>]
+let main _ =
+    let config =
+        ConfigurationBuilder()
+            .SetBasePath(Directory.GetCurrentDirectory())
+            .AddJsonFile("appsettings.json")
+            .Build()
     WebHostBuilder()
-        // .CreateDefaultBuilder(args)
         .UseKestrel()
-        .UseIISIntegration()
-        .ConfigureAppConfiguration(configureConfiguration)
         .ConfigureLogging(configureLogging)
         .Configure(Action<IApplicationBuilder> configureApp)
-        .ConfigureServices(configureServices)
-
-
-[<EntryPoint>]
-let main args =
-    BuildWebHost(args)
+        .ConfigureServices(configureServices config)
         .Build()
         .Run()
-
-    exitCode
+    0

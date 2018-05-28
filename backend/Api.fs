@@ -42,10 +42,10 @@ let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
         task {
             let! model = ctx.BindJson<'T>()
             match validateModel model with
-                    | Valid model ->
-                        return! modelHandler model next ctx
-                    | Invalid results ->
-                        return! badRequest results finish ctx
+                | Valid model ->
+                    return! modelHandler model next ctx
+                | Invalid results ->
+                    return! badRequest results finish ctx
         }
 
 let getAll<'T> (dbConfig : DbConfig) =
