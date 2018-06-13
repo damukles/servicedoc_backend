@@ -1,12 +1,11 @@
 module Api
 
 open Db.Models
+open FSharp.Control.Tasks
+open Giraffe
 open System
 open System.Collections.Generic
 open System.ComponentModel.DataAnnotations
-open Giraffe.Tasks
-open Giraffe.HttpContextExtensions
-open Giraffe.HttpHandlers
 open Microsoft.Extensions.Logging
 open Microsoft.AspNetCore.Http
 open MongoDB.Driver
@@ -38,7 +37,7 @@ let validateModel model =
 let requireValid<'T> (modelHandler : 'T -> HttpHandler) : HttpHandler =
     fun (next : HttpFunc) (ctx : HttpContext) ->
         task {
-            let! model = ctx.BindJson<'T>()
+            let! model = ctx.BindJsonAsync<'T>()
             match validateModel model with
                 | Valid model ->
                     return! modelHandler model next ctx

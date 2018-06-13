@@ -1,8 +1,8 @@
 module Db.Service
 
+open FSharp.Control.Tasks
 open MongoDB.Driver
 open Models
-open Giraffe.Tasks
 
 
 let getClient (dbConfig : DbConfig) =

@@ -32,14 +32,14 @@ let configureServices (config : IConfiguration) (services : IServiceCollection) 
                         |> ignore
             )
         )
-        .Configure<DbConfig>(fun options -> config.Bind("DbConfig", options))
+        .Configure<DbConfig>(fun (options : DbConfig)-> config.Bind("DbConfig", options))
         |> ignore
     ()
 
 let configureApp(app: IApplicationBuilder) =
     let env = app.ApplicationServices.GetService<IHostingEnvironment>()
     if (env.IsDevelopment()) then app.UseCors("CorsPolicy") |> ignore
-    app.UseGiraffeErrorHandler Api.errorHandler
+    app.UseGiraffeErrorHandler Api.errorHandler |> ignore
     let dbClient =
         app.ApplicationServices.GetRequiredService<IOptions<DbConfig>>().Value
             |> Db.Service.getClient
